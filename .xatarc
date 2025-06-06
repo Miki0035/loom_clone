@@ -1,0 +1,6 @@
+{
+  "databaseURL": "https://adiss-abeba-s-workspace-5t2nsa.eu-central-1.xata.sh/db/loom_clone",
+  "codegen": {
+    "output": "src/xata.ts"
+  }
+}
