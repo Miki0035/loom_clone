@@ -2,19 +2,57 @@
 import FileInput from "@/components/FileInput";
 import FormField from "@/components/FormField";
 import { MAX_THUMBNAIL_SIZE, MAX_VIDEO_SIZE } from "@/constants";
+import {
+  getThumbnailUploadUrl,
+  getVideoUploadUrl,
+  saveVidoeDetails,
+} from "@/lib/actions/video";
 import { useFileInput } from "@/lib/hooks/useFileInput";
-import React, { ChangeEvent, FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
+import React, { ChangeEvent, FormEvent, useEffect, useState } from "react";
+
+interface FormDataProps {
+  title: string;
+  description: string;
+  visibility: Visibility;
+}
+
+const uploadFileToBunny = async (
+  file: File,
+  uploadUrl: string,
+  accessKey: string
+): Promise<void> => {
+  return fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type,
+      AccessKey: accessKey,
+    },
+    body: file,
+  }).then((res) => {
+    if (!res.ok) throw new Error("Upload failed");
+  });
+};
 
 const Page = () => {
+  const router = useRouter();
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormDataProps>({
     title: "",
     description: "",
     visibility: "public",
   });
+  const [videoDuration, setVideoDuration] = useState(0);
+
   const video = useFileInput(MAX_VIDEO_SIZE);
   const thumbnail = useFileInput(MAX_THUMBNAIL_SIZE);
+
+  useEffect(() => {
+    if (video.duration !== null || video.duration !== 0) {
+      setVideoDuration(video.duration);
+    }
+  }, [video.duration]);
 
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -30,6 +68,7 @@ const Page = () => {
     e.preventDefault();
 
     setIsSubmitting(true);
+    
 
     try {
       if (!video.file || !thumbnail.file) {
@@ -42,12 +81,42 @@ const Page = () => {
         return;
       }
       // UPLOAD VIDEO TO BUNNY
+      const {
+        videoId,
+        uploadUrl: videoUploadUrl,
+        accessKey: videoAccessKey,
+      } = await getVideoUploadUrl();
 
-      // UPLOAD THUMBNAIL TO DB
+      if (!videoUploadUrl || !videoAccessKey)
+        throw new Error("Failed to get video upload credentials");
 
-      // ATTACH THUBMNAIL to VIDEO
+      await uploadFileToBunny(video.file, videoUploadUrl, videoAccessKey);
+
+      // UPLOAD THUMBNAIL TO BUNNY
+      const {
+        uploadUrl: thumbnailUploadUrl,
+        accessKey: thumbnailAccessKey,
+        cdnUrl: thumbnailCdnUrl,
+      } = await getThumbnailUploadUrl(videoId);
+
+      if (!thumbnailUploadUrl || !thumbnailAccessKey || !thumbnailCdnUrl)
+        throw new Error("Failed to get thumbnail upload credentials");
+
+      await uploadFileToBunny(
+        thumbnail.file,
+        thumbnailUploadUrl,
+        thumbnailAccessKey
+      );
 
       // CREATE VIDEO DB SCHEMA METADATA
+      await saveVidoeDetails({
+        videoId,
+        thumbnailUrl: thumbnailCdnUrl,
+        ...formData,
+        duration: videoDuration,
+      });
+
+      router.push(`/video/${videoId}`);
     } catch (e) {
       console.log(`Error submitting form: ${e}`);
     } finally {
