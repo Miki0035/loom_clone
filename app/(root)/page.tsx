@@ -9,7 +9,7 @@ const Page = async ({ searchParams }: SearchParams) => {
   const { query, filter, page } = await searchParams;
 
   // FETCH VIDEOS FROM DB
-  const { videos, paginiation } = await getAllVideos(
+  const { videos } = await getAllVideos(
     query,
     filter,
     Number(page) || 1
